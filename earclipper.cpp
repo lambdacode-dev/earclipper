@@ -50,27 +50,24 @@ inline bool in_close_interval(Num n, Num a, Num b) {
         (n >= b && n <= a);
 }
 
-// precondition: p is on line connecting a and b
-inline bool on_edge(Point const& p, Point const& a, Point const& b) {
-    return in_close_interval(p.x, a.x, b.x) && in_close_interval(p.y, a.y, b.y); 
-}
-
- // Consider point on edge as inside triangle.
+// Consider point coincident with edge end points as NOT inside triangle.
+// This allows for polygons with holes where holes are connected to outer polygon
+// via conincident edges of opposite directions (e.g. square_disk.csv)
 inline bool inside_triangle(Point const& v, Point const& a, Point const& b, Point const& c) {
     auto vab = triangle_area(v, a, b);
     if(vab == 0)
-        return on_edge(v, a, b);
+        return false;
 
     auto vbc = triangle_area(v, b, c);
     if(vbc == 0)
-        return  on_edge(v, b, c);
+        return  false;
 
     if(vab > 0 != vbc > 0)
         return false;
 
     auto vca = triangle_area(v, c, a);
     if(vca == 0)
-        return on_edge(v, c, a);
+        return false;
     
     return (vbc > 0 == vca > 0);
 }
@@ -130,14 +127,11 @@ int main (int argc, char** argv) {
     Num area_from_integral = integrate_polygon(), 
         area_from_triangulation = 0;
 
-    cout << "area_from_integral      = " << area_from_integral/double(scale)/scale/2.0 << endl; 
     while(points.size() >= 3) {
         auto p0 = points.begin();
         auto p1 = ++points.begin();
         auto p2 = ++++points.begin();
-        cout << "..................\n";
         do {
-            cout << "check : " <<  *p0 << " " << *p1 << " " << *p2 << endl;
             auto area = triangle_area(*p0, *p1, *p2);
             bool degenerate = (area == 0);
             bool is_ear = !degenerate && (area > 0 == area_from_integral > 0); // p1 could be ear tip only if convex corner
@@ -145,7 +139,6 @@ int main (int argc, char** argv) {
                 is_ear = !inside_triangle(*v, *p0, *p1, *p2);
             }
             if(degenerate || is_ear) {
-                cout << "area " << area << endl;
                 if(is_ear) {
                     area_from_triangulation += area;
                     cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
