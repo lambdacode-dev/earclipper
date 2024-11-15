@@ -125,8 +125,6 @@ int main (int argc, char** argv) {
             itr = points.end();
         return --itr;
     };
-    unordered_set<list<Point>::iterator> eartip_points;
-    unordered_set<list<Point>::iterator> concav_points;
 
     // total signed area from integrating the piecewise linear function defined by points
     auto integrate_polygon = [&next, &points]() { 
@@ -145,13 +143,30 @@ int main (int argc, char** argv) {
     Num area_from_integral = integrate_polygon(), 
         area_from_triangulation = 0;
 
+    // precondition: area != 0
+    auto is_convex = [area_from_integral] (Num area) {
+        return area > 0 == area_from_integral > 0;
+    };
+    unordered_set<list<Point>::iterator> eartip_points;
+    unordered_set<list<Point>::iterator> concav_points;
+    // classify into eartip and concave points.
+    //for(auto p1 = points.begin(); p1 != points.end(); ++p1) {
+    //    auto p0 = prev(p1);
+    //    auto p2 = next(p1);
+    //    if(auto area = triangle_area(*p0, *p1, *p2); area != 0) {
+    //        if(area > 0 == area_from_integral > 0)
+
+
+    //    }
+
+    //}
     for(bool found_ear = true; found_ear && points.size() >= 3; ) {
         auto p0 = points.begin();
         auto p1 = ++points.begin();
         auto p2 = ++++points.begin();
         do {
             auto area = triangle_area(*p0, *p1, *p2);
-            found_ear = area != 0 && (area > 0 == area_from_integral > 0); // p1 could be ear tip only if convex corner
+            found_ear = area != 0 && is_convex(area); // p1 could be ear tip only if convex corner
             for(auto v = p2; found_ear && (v = next(v)) != p0; ) {
                 found_ear = !inside_triangle(*v, *p0, *p1, *p2);
             }
