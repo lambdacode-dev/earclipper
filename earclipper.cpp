@@ -1,5 +1,5 @@
 /****************************************************************************************
- * Ear Clipper implementation by Xianming Chen on Nov 6, 2024 for quilter.ai job intervew
+ * Ear Clipper implementation by Xianming Chen 
  * Use 64 bit fixed point arithmetic - enough for typical PCB board with 0.1 µm precision.
  *
  * Set this value to false to use flaoting point arithmetic.
