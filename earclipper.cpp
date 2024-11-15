@@ -24,6 +24,7 @@ constexpr int scale = use_fixed_point_arithmetic ? 10'000'000 : 1;
 template<bool T>
 using NumType = std::conditional_t<T, int64_t, double>;
 using Num = NumType<use_fixed_point_arithmetic>;
+constexpr Num epsilon = use_fixed_point_arithmetic ? 0 : Num(1e-8);
 
 /****************************************************************************************
  * Some simple linear algebra utilities for 2D points/vectors
@@ -42,7 +43,10 @@ inline Num cross_product(Vector const& a, Vector const& b) {
 }
 
 inline Num triangle_area(Point const& a, Point const& b, Point const& c) {
-    return cross_product(b-a, c-a);
+    auto area = cross_product(b-a, c-a);
+    if(abs(area) <= epsilon)
+        area = 0;
+    return area;
 }
 
 inline bool in_close_interval(Num n, Num a, Num b) {
@@ -168,7 +172,7 @@ class EarClipper {
         return --itr;
     }
 public:
-    EarClipper(std::list<Point>&& points) : points(points) {
+    EarClipper(std::list<Point>&& _points) : points(_points) {
         // if given last point = first: remove to cirular iterate with next()
         if(points.begin()->x == points.rbegin()->x && points.begin()->y == points.rbegin()->y)
             points.pop_back();  
@@ -201,7 +205,7 @@ public:
                 }
             }
         }
-        assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : 1e-5) );
+        assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : epsilon) );
         std::cout << "Using " << (use_fixed_point_arithmetic ? "fixed" : "floating") << " point arithmetic\n";
         std::cout << "area_from_integral      = " << std::fixed << std::setprecision(20) << abs(area_from_integral/double(scale)/scale/2.0) << std::endl; 
         std::cout << "area_from_triangulation = " << std::fixed << std::setprecision(20) << abs(area_from_triangulation/double(scale)/scale/2.0) << std::endl; 
