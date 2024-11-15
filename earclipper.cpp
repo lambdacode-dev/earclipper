@@ -17,6 +17,7 @@
 #include <cassert>
 #include <list>
 #include <iomanip>
+#include <unordered_set>
 
 constexpr bool use_fixed_point_arithmetic = true; 
 constexpr int scale = use_fixed_point_arithmetic ? 10'000'000 : 1;
@@ -74,6 +75,16 @@ inline bool inside_triangle(Point const& v, Point const& a, Point const& b, Poin
 /****************************************************************************************/
 
 
+namespace std {
+template<>
+class hash<list<Point>::iterator> {
+public:
+    size_t operator()(list<Point>::iterator i) const {
+        return hash<Point*>{}(&*i);
+    }
+};
+}
+
 inline std::ostream& operator <<(std::ostream& os, Point const& p) {
     return os << double(p.x)/scale << "," << double(p.y)/scale;
 }
@@ -104,11 +115,18 @@ int main (int argc, char** argv) {
     if(points.begin()->x == points.rbegin()->x && points.begin()->y == points.rbegin()->y)
         points.pop_back();  
 
-    auto next = [&points](std::list<Point>::iterator& itr) {
+    auto next = [&points](std::list<Point>::iterator itr) {
         if(++itr == points.end()) 
             itr = points.begin();
         return itr;
     };
+    auto prev = [&points](std::list<Point>::iterator itr) {
+        if(itr == points.begin()) 
+            itr = points.end();
+        return --itr;
+    };
+    unordered_set<list<Point>::iterator> eartip_points;
+    unordered_set<list<Point>::iterator> concav_points;
 
     // total signed area from integrating the piecewise linear function defined by points
     auto integrate_polygon = [&next, &points]() { 
@@ -117,8 +135,8 @@ int main (int argc, char** argv) {
             auto p1 = points.begin(), p0 = p1++;
             do {
                 total += (p0->y + p1->y) * (p1->x - p0->x);
-                next(p0);
-                next(p1);
+                p0 = next(p0);
+                p1 = next(p1);
             } while(p0 != points.begin());
         }
         return -total;  // negate so positive area for ccw polygon
@@ -127,29 +145,26 @@ int main (int argc, char** argv) {
     Num area_from_integral = integrate_polygon(), 
         area_from_triangulation = 0;
 
-    while(points.size() >= 3) {
+    for(bool found_ear = true; found_ear && points.size() >= 3; ) {
         auto p0 = points.begin();
         auto p1 = ++points.begin();
         auto p2 = ++++points.begin();
         do {
             auto area = triangle_area(*p0, *p1, *p2);
-            bool degenerate = (area == 0);
-            bool is_ear = !degenerate && (area > 0 == area_from_integral > 0); // p1 could be ear tip only if convex corner
-            for(auto v = p2; is_ear && next(v) != p0; ) {
-                is_ear = !inside_triangle(*v, *p0, *p1, *p2);
+            found_ear = area != 0 && (area > 0 == area_from_integral > 0); // p1 could be ear tip only if convex corner
+            for(auto v = p2; found_ear && (v = next(v)) != p0; ) {
+                found_ear = !inside_triangle(*v, *p0, *p1, *p2);
             }
-            if(degenerate || is_ear) {
-                if(is_ear) {
-                    area_from_triangulation += area;
-                    cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
-                }
+            if(found_ear) {
+                area_from_triangulation += area;
+                cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
                 points.erase(p1);
                 break;
             }
             else {
-                next(p0);
-                next(p1);
-                next(p2);
+                p0 = next(p0);
+                p1 = next(p1);
+                p2 = next(p2);
             }
         }
         while(p0 != points.begin());
