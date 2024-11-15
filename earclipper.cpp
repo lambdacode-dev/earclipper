@@ -143,47 +143,99 @@ int main (int argc, char** argv) {
     Num area_from_integral = integrate_polygon(), 
         area_from_triangulation = 0;
 
-    // precondition: area != 0
-    auto is_convex = [area_from_integral] (Num area) {
-        return area > 0 == area_from_integral > 0;
-    };
     unordered_set<list<Point>::iterator> eartip_points;
     unordered_set<list<Point>::iterator> concav_points;
-    // classify into eartip and concave points.
-    //for(auto p1 = points.begin(); p1 != points.end(); ++p1) {
-    //    auto p0 = prev(p1);
-    //    auto p2 = next(p1);
-    //    if(auto area = triangle_area(*p0, *p1, *p2); area != 0) {
-    //        if(area > 0 == area_from_integral > 0)
 
+    auto check_convex = [&points, &prev, &next, area_from_integral] (list<Point>::iterator p1) {
+        auto p0 = prev(p1);
+        auto p2 = next(p1);
+        auto area = triangle_area(*p0, *p1, *p2); 
+        return area != 0 && area > 0 == area_from_integral > 0;;
+    };
 
-    //    }
+    auto check_ear = [&concav_points, &points, &prev, &next] (list<Point>::iterator p1) {
+        auto p0 = prev(p1);
+        auto p2 = next(p1);
+        for(auto v : concav_points) {
+            if(inside_triangle(*v, *p0, *p1, *p2))
+                return false;
+        }
+        return true;
+    };
 
-    //}
-    for(bool found_ear = true; found_ear && points.size() >= 3; ) {
-        auto p0 = points.begin();
-        auto p1 = ++points.begin();
-        auto p2 = ++++points.begin();
-        do {
-            auto area = triangle_area(*p0, *p1, *p2);
-            found_ear = area != 0 && is_convex(area); // p1 could be ear tip only if convex corner
-            for(auto v = p2; found_ear && (v = next(v)) != p0; ) {
-                found_ear = !inside_triangle(*v, *p0, *p1, *p2);
-            }
-            if(found_ear) {
-                area_from_triangulation += area;
-                cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
-                points.erase(p1);
-                break;
-            }
-            else {
-                p0 = next(p0);
-                p1 = next(p1);
-                p2 = next(p2);
+    // classify into concave and convex points.
+    for(auto p1 = points.begin(); p1 != points.end(); ++p1) {
+        if(check_convex(p1))
+            eartip_points.insert(p1); // not ear yet
+        else 
+            concav_points.insert(p1); // count middle point of degenerate triangle
+    }
+    // filter out non eartip from convex points
+    for(auto itr = eartip_points.begin(); itr != eartip_points.end(); ) {
+        if(check_ear(*itr))
+            ++itr;
+        else
+            itr = eartip_points.erase(itr);
+    }
+
+    // clip ear
+    while(!eartip_points.empty() && points.size() >= 3) {
+        cout << "points size = " << points.size() << endl;
+        for(auto e : eartip_points) cout << *e << " ^ "; cout << endl;
+        for(auto e : concav_points) cout << *e << " v "; cout << endl;
+        auto itr = eartip_points.begin();
+        auto p1 = *itr;
+        auto p0 = prev(p1);
+        auto p2 = next(p1);
+        auto area = triangle_area(*p0, *p1, *p2);
+        cout << area << endl;
+        if(area < 0) {
+            cout << ".......check ear " << *p1 << endl;
+            cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
+        }
+        assert(area == 0 || check_convex(p1));
+        if(area) {
+            area_from_triangulation += area;
+            cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
+        }
+        eartip_points.erase(itr);
+        points.erase(p1);
+        for(auto p : {p0, p2}) {
+            if(eartip_points.find(p) == eartip_points.end() && check_convex(p)) {
+                concav_points.erase(p);
+                if(check_ear(p)) {
+                    eartip_points.insert(p);
+                    cout << "..add new ear " << *p << endl;
+
+                }
             }
         }
-        while(p0 != points.begin());
     }
+
+    //for(bool found_ear = true; found_ear && points.size() >= 3; ) {
+    //    auto p0 = points.begin();
+    //    auto p1 = ++points.begin();
+    //    auto p2 = ++++points.begin();
+    //    do {
+    //        auto area = triangle_area(*p0, *p1, *p2);
+    //        found_ear = area != 0 && is_convex(area); // p1 could be ear tip only if convex corner
+    //        for(auto v = p2; found_ear && (v = next(v)) != p0; ) {
+    //            found_ear = !inside_triangle(*v, *p0, *p1, *p2);
+    //        }
+    //        if(found_ear) {
+    //            area_from_triangulation += area;
+    //            cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
+    //            points.erase(p1);
+    //            break;
+    //        }
+    //        else {
+    //            p0 = next(p0);
+    //            p1 = next(p1);
+    //            p2 = next(p2);
+    //        }
+    //    }
+    //    while(p0 != points.begin());
+    //}
     assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : 1e-5) );
     cout << "Using " << (use_fixed_point_arithmetic ? "fixed" : "floating") << " point arithmetic\n";
     cout << "area_from_integral      = " << std::fixed << std::setprecision(20) << abs(area_from_integral/double(scale)/scale/2.0) << endl; 
