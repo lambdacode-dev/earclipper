@@ -75,20 +75,10 @@ inline bool inside_triangle(Point const& v, Point const& a, Point const& b, Poin
 /****************************************************************************************/
 
 
-namespace std {
-template<>
-class hash<list<Point>::iterator> {
-public:
-    size_t operator()(list<Point>::iterator i) const {
-        return hash<Point*>{}(&*i);
-    }
-};
-}
-
+/************** IO **********************************************************************/
 inline std::ostream& operator <<(std::ostream& os, Point const& p) {
     return os << double(p.x)/scale << "," << double(p.y)/scale;
 }
-
 inline void read_from_file(char const* filename, std::list<Point>& points) {
     std::ifstream file(filename);
     while(file) {
@@ -99,35 +89,29 @@ inline void read_from_file(char const* filename, std::list<Point>& points) {
             points.push_back({Num(x*scale),Num(y*scale)});
     }
 }
+/****************************************************************************************/
 
-int main (int argc, char** argv) {
-    using namespace std;
-    if(argc != 2) {
-        cerr << "Usage: " << argv[0] << " polygon_csv_filename\n";
-        return 1;
+namespace std {
+template<>
+class hash<list<Point>::iterator> {
+public:
+    size_t operator()(list<Point>::iterator i) const {
+        return hash<Point*>{}(&*i);
     }
+};
+}
 
-    list<Point> points;
-    read_from_file(argv[1], points);
-    assert(points.size() >= 3);
 
-    // if given last point = first: remove to cirular iterate with next()
-    if(points.begin()->x == points.rbegin()->x && points.begin()->y == points.rbegin()->y)
-        points.pop_back();  
+class EarClipper {
+    std::list<Point> points;
+    using PointPtr = std::list<Point>::iterator;
+    std::unordered_set<PointPtr> eartip_points;
+    std::unordered_set<PointPtr> concav_points;
 
-    auto next = [&points](std::list<Point>::iterator itr) {
-        if(++itr == points.end()) 
-            itr = points.begin();
-        return itr;
-    };
-    auto prev = [&points](std::list<Point>::iterator itr) {
-        if(itr == points.begin()) 
-            itr = points.end();
-        return --itr;
-    };
+    Num area_from_integral = 0, area_from_triangulation = 0;
 
     // total signed area from integrating the piecewise linear function defined by points
-    auto integrate_polygon = [&next, &points]() { 
+    Num integrate_polygon () { 
         Num total = 0;
         if(points.size() >= 3) {
             auto p1 = points.begin(), p0 = p1++;
@@ -138,22 +122,15 @@ int main (int argc, char** argv) {
             } while(p0 != points.begin());
         }
         return -total;  // negate so positive area for ccw polygon
-    };
-
-    Num area_from_integral = integrate_polygon(), 
-        area_from_triangulation = 0;
-
-    unordered_set<list<Point>::iterator> eartip_points;
-    unordered_set<list<Point>::iterator> concav_points;
-
-    auto check_convex = [&points, &prev, &next, area_from_integral] (list<Point>::iterator p1) {
+    }
+    bool check_convex(PointPtr p1) {
         auto p0 = prev(p1);
         auto p2 = next(p1);
         auto area = triangle_area(*p0, *p1, *p2); 
         return area != 0 && area > 0 == area_from_integral > 0;;
-    };
+    }
 
-    auto check_ear = [&concav_points, &points, &prev, &next] (list<Point>::iterator p1) {
+    bool check_ear (PointPtr p1) {
         auto p0 = prev(p1);
         auto p2 = next(p1);
         for(auto v : concav_points) {
@@ -161,50 +138,87 @@ int main (int argc, char** argv) {
                 return false;
         }
         return true;
-    };
-
-    // classify into concave and convex points.
-    for(auto p1 = points.begin(); p1 != points.end(); ++p1) {
-        if(check_convex(p1))
-            eartip_points.insert(p1); // not ear yet
-        else 
-            concav_points.insert(p1); // count middle point of degenerate triangle
-    }
-    // filter out non eartip from convex points
-    for(auto itr = eartip_points.begin(); itr != eartip_points.end(); ) {
-        if(check_ear(*itr))
-            ++itr;
-        else
-            itr = eartip_points.erase(itr);
     }
 
-    // clip ear
-    while(!eartip_points.empty() && points.size() >= 3) {
-        auto itr = eartip_points.begin();
-        auto p1 = *itr;
-        auto p0 = prev(p1);
-        auto p2 = next(p1);
-        auto area = triangle_area(*p0, *p1, *p2);
-        assert(area == 0 || check_convex(p1));
-        if(area) {
-            area_from_triangulation += area;
-            cout << *p0 << endl << *p1 << endl << *p2 << endl << endl;
+    void find_concave_and_eartips() {
+        for(auto p1 = points.begin(); p1 != points.end(); ++p1) {
+            if(check_convex(p1))
+                eartip_points.insert(p1); // not ear yet
+            else 
+                concav_points.insert(p1); // count middle point of degenerate triangle
         }
-        eartip_points.erase(itr);
-        points.erase(p1);
-        for(auto p : {p0, p2}) {
-            if(check_convex(p)) {
-                concav_points.erase(p);
-                if(check_ear(p))
-                    eartip_points.insert(p);
-                else
-                    eartip_points.erase(p);
+        // filter out non eartip from convex points
+        for(auto itr = eartip_points.begin(); itr != eartip_points.end(); ) {
+            if(check_ear(*itr))
+                ++itr;
+            else
+                itr = eartip_points.erase(itr);
+        }
+    }
+
+    // circular iterator
+    PointPtr next(PointPtr itr) {
+        if(++itr == points.end()) 
+            itr = points.begin();
+        return itr;
+    }
+    PointPtr prev(PointPtr itr) {
+        if(itr == points.begin()) 
+            itr = points.end();
+        return --itr;
+    }
+public:
+    EarClipper(std::list<Point>&& points) : points(points) {
+        // if given last point = first: remove to cirular iterate with next()
+        if(points.begin()->x == points.rbegin()->x && points.begin()->y == points.rbegin()->y)
+            points.pop_back();  
+
+        assert(points.size() >= 3);
+        area_from_integral = integrate_polygon();
+        find_concave_and_eartips();
+    }
+    void operator()() {
+        while(!eartip_points.empty() && points.size() >= 3) {
+            auto itr = eartip_points.begin();
+            auto p1 = *itr;
+            auto p0 = prev(p1);
+            auto p2 = next(p1);
+            auto area = triangle_area(*p0, *p1, *p2);
+            assert(area == 0 || check_convex(p1));
+            if(area) {
+                area_from_triangulation += area;
+                std::cout << *p0 << std::endl << *p1 << std::endl << *p2 << std::endl << std::endl;
+            }
+            eartip_points.erase(itr);
+            points.erase(p1);
+            for(auto p : {p0, p2}) {
+                if(check_convex(p)) {
+                    concav_points.erase(p);
+                    if(check_ear(p))
+                        eartip_points.insert(p);
+                    else
+                        eartip_points.erase(p);
+                }
             }
         }
+        assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : 1e-5) );
+        std::cout << "Using " << (use_fixed_point_arithmetic ? "fixed" : "floating") << " point arithmetic\n";
+        std::cout << "area_from_integral      = " << std::fixed << std::setprecision(20) << abs(area_from_integral/double(scale)/scale/2.0) << std::endl; 
+        std::cout << "area_from_triangulation = " << std::fixed << std::setprecision(20) << abs(area_from_triangulation/double(scale)/scale/2.0) << std::endl; 
     }
-    assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : 1e-5) );
-    cout << "Using " << (use_fixed_point_arithmetic ? "fixed" : "floating") << " point arithmetic\n";
-    cout << "area_from_integral      = " << std::fixed << std::setprecision(20) << abs(area_from_integral/double(scale)/scale/2.0) << endl; 
-    cout << "area_from_triangulation = " << std::fixed << std::setprecision(20) << abs(area_from_triangulation/double(scale)/scale/2.0) << endl; 
+};
+
+int main (int argc, char** argv) {
+    using namespace std;
+    if(argc != 2) {
+        cerr << "Usage: " << argv[0] << " polygon_csv_filename\n";
+        return 1;
+    }
+
+    list<Point> points;
+    read_from_file(argv[1], points);
+    EarClipper clipper(std::move(points));
+    clipper();
+
     return 0;
 }
