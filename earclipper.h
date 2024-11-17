@@ -1,15 +1,5 @@
 /****************************************************************************************
  * Ear Clipper implementation by Xianming Chen 
- * Use 64 bit fixed point arithmetic - enough for typical PCB board with 0.1 µm precision.
- *
- * Set this value to false to use floating point arithmetic.
- *    constexpr bool use_fixed_point_arithmetic = true; 
- *
- *. Tested on Mac OS 14.5, Ubuntu 24.04 and Docker Ubuntu 22.04, with g++ 13, g++ 11, and
- *  Apple clang 16. To build: 
- *    make earclipper
- *  or,
- *    CXXFLAGS="-std=c++17" make earclipper
  **/
 
 #include "la2d.h"
@@ -133,18 +123,3 @@ public:
         std::cout << "area_from_triangulation = " << std::fixed << std::setprecision(20) << abs(area_from_triangulation/double(scale)/scale/2.0) << std::endl; 
     }
 };
-
-int main (int argc, char** argv) {
-    using namespace std;
-    if(argc != 2) {
-        cerr << "Usage: " << argv[0] << " polygon_csv_filename\n";
-        return 1;
-    }
-
-    list<Point> points;
-    read_from_file(argv[1], points);
-    EarClipper clipper(std::move(points));
-    clipper();
-
-    return 0;
-}

@@ -1,3 +1,9 @@
+/****************************************************************************************
+ * Use 64 bit fixed point arithmetic - enough for typical PCB board with 0.1 µm precision.
+ *
+ * Set this value to false to use floating point arithmetic.
+ *    constexpr bool use_fixed_point_arithmetic = true; 
+ **/
 #include <iostream>
 #include <fstream>
 #include <iomanip>
