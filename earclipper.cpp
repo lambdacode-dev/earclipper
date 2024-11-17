@@ -2,7 +2,7 @@
  * Ear Clipper implementation by Xianming Chen 
  * Use 64 bit fixed point arithmetic - enough for typical PCB board with 0.1 µm precision.
  *
- * Set this value to false to use flaoting point arithmetic.
+ * Set this value to false to use floating point arithmetic.
  *    constexpr bool use_fixed_point_arithmetic = true; 
  *
  *. Tested on Mac OS 14.5, Ubuntu 24.04 and Docker Ubuntu 22.04, with g++ 13, g++ 11, and
