@@ -1,3 +1,5 @@
+#ifndef LA2D_H
+#define LA2D_H 
 /****************************************************************************************
  * Use 64 bit fixed point arithmetic - enough for typical PCB board with 0.1 µm precision.
  *
@@ -84,3 +86,4 @@ void read_from_file(char const* filename, List& points) {
     }
 }
 /****************************************************************************************/
+#endif

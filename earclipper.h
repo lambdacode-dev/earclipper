@@ -1,10 +1,13 @@
+#ifndef EARCLIPPER_H
+#define EARCLIPPER_H
 /****************************************************************************************
  * Ear Clipper implementation by Xianming Chen 
  **/
 
 #include "la2d.h"
-#include <cassert>
+#include "integrate_polygon.h"
 #include <list>
+#include <cassert>
 #include <unordered_set>
 
 namespace std {
@@ -26,19 +29,6 @@ class EarClipper {
 
     Num area_from_integral = 0, area_from_triangulation = 0;
 
-    // total signed area from integrating the piecewise linear function defined by points
-    Num integrate_polygon () { 
-        Num total = 0;
-        if(points.size() >= 3) {
-            auto p1 = points.begin(), p0 = p1++;
-            do {
-                total += (p0->y + p1->y) * (p1->x - p0->x);
-                p0 = next(p0);
-                p1 = next(p1);
-            } while(p0 != points.begin());
-        }
-        return -total;  // negate so positive area for ccw polygon
-    }
     bool check_convex(PointPtr p1) {
         auto p0 = prev(p1);
         auto p2 = next(p1);
@@ -90,7 +80,7 @@ public:
             points.pop_back();  
 
         assert(points.size() >= 3);
-        area_from_integral = integrate_polygon();
+        area_from_integral = integrate_polygon(points);
         find_concave_and_eartips();
     }
     void operator()() {
@@ -117,9 +107,10 @@ public:
                 }
             }
         }
-        assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : epsilon) );
         std::cout << "Using " << (use_fixed_point_arithmetic ? "fixed" : "floating") << " point arithmetic\n";
         std::cout << "area_from_integral      = " << std::fixed << std::setprecision(20) << abs(area_from_integral/double(scale)/scale/2.0) << std::endl; 
         std::cout << "area_from_triangulation = " << std::fixed << std::setprecision(20) << abs(area_from_triangulation/double(scale)/scale/2.0) << std::endl; 
+        assert( abs(area_from_triangulation - area_from_integral) <= (use_fixed_point_arithmetic ? 0 : epsilon) );
     }
 };
+#endif
